@@ -1,73 +1,45 @@
-// server.js
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { pool } from "./db.js";
+import { supabase } from "./db.js";
 import { createObjectCsvWriter } from "csv-writer";
 import fs from "fs";
 import path from "path";
-
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
-/**
- * ------------------------------
- * MAPEAMENTOS (códigos da planilha)
- * ------------------------------
- *
- * Esses arrays foram montados conforme discutimos (mapeamento por ordem):
- * - SD4_CODES: correspondem a q1..q28 (maquiavelismo, narcisismo, psicopatia, sadismo)
- * - FORCAS_CODES: correspondem a q7_1..q7_18 (forças/intra/intelectuais conforme planilha)
- * - SUBSTANCIAS_CODES: correspondem a q0_1..q0_18 (grupos por blocos)
- * - BIG5_CODES: big1..big10 (mantidos como front keys)
- */
-
+/* ------------------------------
+   MAPEAMENTOS / CONSTANTES
+   ------------------------------ */
 const SD4_CODES = [
-  "BY","BZ","CA","CB","CC","CD","CE", // 1..7 (Maquiavelismo)
-  "CF","CG","CH","CI","CJ","CK","CL", // 8..14 (Narcisismo)
-  "CM","CN","CO","CP","CQ","CR","CS", // 15..21 (Psicopatia)
-  "CT","CU","CV","CW","CX","CY","CZ"  // 22..28 (Sadismo)
+  "BY","BZ","CA","CB","CC","CD","CE",
+  "CF","CG","CH","CI","CJ","CK","CL",
+  "CM","CN","CO","CP","CQ","CR","CS",
+  "CT","CU","CV","CW","CX","CY","CZ"
 ];
 
 const FORCAS_CODES = [
-  // intrapessoais (6)
   "DU","DV","DW","EB","EC","EE",
-  // intelectuais / interpessoais (12)  (seguindo a ordem extraída)
   "DS","DT","DX","DY","DZ","ED","EF","EG","EH","EI","EJ","EK"
 ];
-// Nota: se a sua planilha tiver nomes diferentes/quantidade diferente, ajuste a lista acima.
 
 const SUBSTANCIAS_CODES = [
-  // Álcool (6)
   "Q1","AA1","AK1","AU1","BE1","BO1",
-  // Tabaco (6)
   "P1","Z1","AJ1","AT1","BD1","BN1",
-  // Maconha (6)
   "R1","AB1","AL1","AV1","BF1","BP1",
-  // Cocaína (6)
   "S1","AC1","AM1","AW1","BG1","BQ1",
-  // Anfetaminas (6)
   "T1","AD1","AN1","AX1","BH1","BR1",
-  // Inalantes (6)
   "U1","AE1","AO1","AY1","BI1","BS1",
-  // Hipnóticos/Sedativos (6)
   "V1","AF1","AP1","AZ1","BJ1","BT1",
-  // Alucinógenos (6)
   "W1","AG1","AQ1","BA1","BL1","BU1",
-  // Opioides (6)
   "X1","AH1","AR1","BB1","BM1","BV1",
-  // Uso injetável (1)
   "BX1"
 ];
 
 const BIG5_CODES = ["big1","big2","big3","big4","big5","big6","big7","big8","big9","big10"];
 
-/**
- * Thresholds e mensagens (conforme planilha / nossas conversas)
- * Ajuste valores caso a planilha contenha outros cortes.
- */
 const THRESHOLDS = {
   maquiavelismo: [17, 27],
   narcisismo: [13, 23],
@@ -104,13 +76,7 @@ const MENSAGENS = {
   }
 };
 
-/**
- * Perguntas (mapa código -> texto) para uso em exportação CSV (opcional).
- * Se você já tem esse mapa no frontend, manter aqui é redundante, mas útil para export no backend.
- * Usei os textos que combinamos — revise se quiser alterações.
- */
 const perguntasMap = {
-  // Demográficas
   idade: "Idade",
   genero: "Gênero que se identifica",
   cor: "Cor",
@@ -124,8 +90,6 @@ const perguntasMap = {
   crimeDetalhe: "Qual crime?",
   substancias: "Você já usou alguma substância sem prescrição médica?",
   outrasSubstanciasDetalhe: "Outras substâncias (especificar)",
-
-  // escala 1-5 (q1..q28)
   q1: "Não acho inteligente deixar as pessoas conhecerem os meus segredos.",
   q2: "Acredito que as pessoas devem fazer o que for preciso para ganhar o apoio de pessoas importantes.",
   q3: "Evito conflito direto com as pessoas porque elas podem me ser úteis no futuro.",
@@ -154,8 +118,6 @@ const perguntasMap = {
   q26: "Acho que algumas pessoas merecem sofrer.",
   q27: "Já disse coisas maldosas na internet só por diversão.",
   q28: "Sei como machucar as pessoas somente com palavras.",
-
-  // escala 1-7 (q7_1..q7_18)
   q7_1: "Fui propositalmente maldoso(a) com outras pessoas no ensino médio.",
   q7_2: "Gosto de machucar fisicamente as pessoas.",
   q7_3: "Já dominei outras pessoas usando medo.",
@@ -174,8 +136,6 @@ const perguntasMap = {
   q7_16: "Eu tenho o direito de empurrar as pessoas.",
   q7_17: "Adoro assistir vídeos de pessoas brigando na internet.",
   q7_18: "Esportes são violentos demais.",
-
-  // escala 0-4 (q0_1..q0_18)
   q0_1: "Sei o que fazer para que as pessoas se sintam bem.",
   q0_2: "Sou competente para analisar problemas por diferentes ângulos.",
   q0_3: "Coisas boas me aguardam no futuro.",
@@ -194,8 +154,6 @@ const perguntasMap = {
   q0_16: "Tenho facilidade para fazer uma situação chata se tornar divertida.",
   q0_17: "Costumo tomar decisões quando estou ciente das consequências.",
   q0_18: "Sou uma pessoa justa.",
-
-  // Big5
   big1: "É conversador, comunicativo.",
   big2: "Gosta de cooperar com os outros.",
   big3: "É original, tem sempre novas ideias.",
@@ -208,11 +166,7 @@ const perguntasMap = {
   big10: "Fica nervoso facilmente."
 };
 
-/**
- * ------------------------------
- * HELPERS
- * ------------------------------
- */
+/* HELPERS */
 const toNumber = (v) => {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") return v;
@@ -245,99 +199,30 @@ const interpretScore = (factorKey, score) => {
   return { category, message };
 };
 
-/**
- * ------------------------------
- * Mapear respostas vindas do front (q1, q7_1, q0_1, big1...) para os códigos da planilha
- * ------------------------------
- */
 function mapFrontToPlanilha(respostasFront) {
   const respostas = {};
-
-  // SD4 q1..q28 -> SD4_CODES
-  SD4_CODES.forEach((code, idx) => {
-    respostas[code] = respostasFront[`q${idx + 1}`];
-  });
-
-  // Forças q7_1..q7_18 -> FORCAS_CODES
-  FORCAS_CODES.forEach((code, idx) => {
-    respostas[code] = respostasFront[`q7_${idx + 1}`];
-  });
-
-  // Substâncias q0_1..q0_18 -> SUBSTANCIAS_CODES
-  SUBSTANCIAS_CODES.forEach((code, idx) => {
-    respostas[code] = respostasFront[`q0_${idx + 1}`];
-  });
-
-  // Big Five big1..big10 -> same keys
-  BIG5_CODES.forEach((code) => {
-    respostas[code] = respostasFront[code];
-  });
-
-  // also map demographic keys if present (nome, escolaridade, crimeDetalhe etc.)
+  SD4_CODES.forEach((code, idx) => { respostas[code] = respostasFront[`q${idx + 1}`]; });
+  FORCAS_CODES.forEach((code, idx) => { respostas[code] = respostasFront[`q7_${idx + 1}`]; });
+  SUBSTANCIAS_CODES.forEach((code, idx) => { respostas[code] = respostasFront[`q0_${idx + 1}`]; });
+  BIG5_CODES.forEach((code) => { respostas[code] = respostasFront[code]; });
   const possibleKeys = ["idade","genero","cor","escolaridade","area","estadoCivil","renda","diagnostico","diagnosticoDetalhe","crime","crimeDetalhe","substancias","outrasSubstanciasDetalhe"];
-  possibleKeys.forEach((k) => {
-    if (respostasFront[k] !== undefined) respostas[k] = respostasFront[k];
-  });
-
+  possibleKeys.forEach((k) => { if (respostasFront[k] !== undefined) respostas[k] = respostasFront[k]; });
   return respostas;
 }
 
-/**
- * ------------------------------
- * Garantir que a tabela exista (executa no startup)
- * ------------------------------
- */
-const ensureTables = async () => {
-  const createSql = `
-    CREATE TABLE IF NOT EXISTS respostas (
-      id SERIAL PRIMARY KEY,
-      nome TEXT,
-      email TEXT,
-      consent BOOLEAN DEFAULT false,
-      respostas JSONB NOT NULL,
-      scores JSONB,
-      categories JSONB,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `;
-  await pool.query(createSql);
-};
+/* Endpoints */
 
-ensureTables().catch((err) => {
-  console.error("Erro ao garantir tabelas:", err);
-});
-
-/**
- * ------------------------------
- * Endpoints
- * ------------------------------
- */
-
-// rota de debug / mapping (opcional)
+/* debug / mapping */
 app.get("/api/mapping", (req, res) => {
-  res.json({
-    sd4_codes: SD4_CODES,
-    forcas_codes: FORCAS_CODES,
-    substancias_codes: SUBSTANCIAS_CODES,
-    big5_codes: BIG5_CODES,
-    perguntasMap,
-    thresholds: THRESHOLDS
-  });
+  res.json({ sd4_codes: SD4_CODES, forcas_codes: FORCAS_CODES, substancias_codes: SUBSTANCIAS_CODES, big5_codes: BIG5_CODES, perguntasMap, thresholds: THRESHOLDS });
 });
 
-/**
- * POST /api/sd4
- * body: { consent, nome, email, respostas: { q1: 4, q2: 3, q7_1: 6, q0_1: 2, big1: 5, ... } }
- * retorna: { ok: true, id, created_at, scores, categories }
- */
+/* POST /api/sd4 */
 app.post("/api/sd4", async (req, res) => {
   try {
     const { nome = null, email = null, consent = false, respostas: respostasFront = {} } = req.body;
-
-    // mapear para códigos da planilha
     const respostas = mapFrontToPlanilha(respostasFront);
 
-    // calcular subescalas SD4
     const scores = {};
     const categories = {};
 
@@ -351,30 +236,21 @@ app.post("/api/sd4", async (req, res) => {
     calcFactor("narcisismo", SD4_CODES.slice(7,14));
     calcFactor("psicopatia", SD4_CODES.slice(14,21));
     calcFactor("sadismo", SD4_CODES.slice(21,28));
-    // fator geral - total dos 28 itens
+
     const geralSum = sumItems(respostas, SD4_CODES);
     scores.fatorGeral = { raw: geralSum.sum, answeredItems: geralSum.count, possibleItems: SD4_CODES.length };
     categories.fatorGeral = interpretScore("fatorGeral", geralSum.sum);
 
-    // Forças intrapessoais / intelectuais-interpessoais
     const intrap = sumItems(respostas, FORCAS_CODES.slice(0,6));
     const inte = sumItems(respostas, FORCAS_CODES.slice(6));
     scores.forcas_intrapessoais = { raw: intrap.sum, answeredItems: intrap.count, possibleItems: 6 };
     scores.forcas_intelectuais_interp = { raw: inte.sum, answeredItems: inte.count, possibleItems: FORCAS_CODES.slice(6).length };
 
-    // Substâncias - soma por grupo (usado apenas para info)
     const substanciasScores = {};
-    // group order consistent with SUBSTANCIAS_CODES slicing
     const substGroups = [
-      { key: "alcool", len: 6 },
-      { key: "tabaco", len: 6 },
-      { key: "maconha", len: 6 },
-      { key: "cocaina", len: 6 },
-      { key: "anfetaminas", len: 6 },
-      { key: "inalantes", len: 6 },
-      { key: "hipnoticos_sedativos", len: 6 },
-      { key: "alucinogenos", len: 6 },
-      { key: "opioides", len: 6 },
+      { key: "alcool", len: 6 },{ key: "tabaco", len: 6 },{ key: "maconha", len: 6 },
+      { key: "cocaina", len: 6 },{ key: "anfetaminas", len: 6 },{ key: "inalantes", len: 6 },
+      { key: "hipnoticos_sedativos", len: 6 },{ key: "alucinogenos", len: 6 },{ key: "opioides", len: 6 },
       { key: "uso_injetavel", len: 1 }
     ];
     let idx = 0;
@@ -386,70 +262,73 @@ app.post("/api/sd4", async (req, res) => {
     }
     scores.substancias = substanciasScores;
 
-    // Big5: soma simples
     const big5 = sumItems(respostas, BIG5_CODES);
     scores.big5_total = { raw: big5.sum, answeredItems: big5.count, possibleItems: BIG5_CODES.length };
 
-    // salvar no banco
-    const insertSql = `
-      INSERT INTO respostas (nome, email, consent, respostas, scores, categories)
-      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb)
-      RETURNING id, created_at
-    `;
-    const values = [
+    // salvar via Supabase (service role key required)
+    const payload = {
       nome,
       email,
-      Boolean(consent),
-      JSON.stringify(respostas),
-      JSON.stringify(scores),
-      JSON.stringify(categories)
-    ];
-
-    const result = await pool.query(insertSql, values);
-    const saved = result.rows[0];
-
-    return res.json({
-      ok: true,
-      message: "Respostas recebidas e calculadas",
-      id: saved.id,
-      created_at: saved.created_at,
+      consent: Boolean(consent),
+      respostas,
       scores,
       categories
-    });
+    };
+
+    const { data: insertData, error: insertError, status } = await supabase.from("respostas").insert([payload]).select("id, created_at").single();
+    if (insertError) {
+      console.error("Supabase insert error:", insertError);
+      return res.status(status || 500).json({ ok: false, message: "Erro ao salvar respostas" });
+    }
+
+    return res.json({ ok: true, message: "Respostas recebidas e calculadas", id: insertData.id, created_at: insertData.created_at, scores, categories });
   } catch (err) {
     console.error("POST /api/sd4 error:", err);
     res.status(500).json({ ok: false, message: "Erro interno", error: err.message });
   }
 });
 
-/**
- * GET /api/respostas
- * Retorna todas as respostas salvas (com scores e categories)
- */
+/* GET /api/respostas */
 app.get("/api/respostas", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT id, nome, email, consent, respostas, scores, categories, created_at FROM respostas ORDER BY created_at DESC");
-    res.json(rows);
+    const { data, error, status } = await supabase
+      .from("respostas")
+      .select("id,nome,email,consent,respostas,scores,categories,created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Supabase select error:", error);
+      return res.status(status || 500).json({ ok: false, message: "Erro ao buscar respostas" });
+    }
+    return res.json(data ?? []);
   } catch (err) {
     console.error("GET /api/respostas error:", err);
     res.status(500).send("Erro ao buscar respostas");
   }
 });
 
-/**
- * GET /api/export
- * Gera um CSV onde cada linha é: Nome,Email,Pergunta (texto),Resposta,Resultado_Num,Resultado_Categoria,Data
- */
+/* GET /api/export */
 app.get("/api/export", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT id, nome, email, respostas, scores, categories, created_at FROM respostas ORDER BY created_at DESC");
+    const { data: rows, error } = await supabase
+      .from("respostas")
+      .select("id,nome,email,respostas,scores,categories,created_at")
+      .order("created_at", { ascending: false });
 
-    // montar registros (cada par pergunta-resposta vira uma linha)
+    if (error) {
+      console.error("Supabase select error (export):", error);
+      return res.status(500).send("Erro ao exportar CSV");
+    }
+
     const records = [];
-    rows.forEach((r) => {
+    (rows || []).forEach((r) => {
       const respostasObj = r.respostas || {};
-      const finalScore = (r.scores && r.scores.fatorGeral && r.scores.fatorGeral.raw) ? r.scores.fatorGeral.raw : (r.scores && typeof r.scores.fatorGeral === "number" ? r.scores.fatorGeral : "");
-      const finalCategory = (r.categories && r.categories.fatorGeral && r.categories.fatorGeral.category) ? r.categories.fatorGeral.category : "";
+      const finalScore = (r.scores && r.scores.fatorGeral && typeof r.scores.fatorGeral.raw !== "undefined")
+        ? r.scores.fatorGeral.raw
+        : (r.scores && typeof r.scores.fatorGeral === "number" ? r.scores.fatorGeral : "");
+      const finalCategory = (r.categories && r.categories.fatorGeral && r.categories.fatorGeral.category)
+        ? r.categories.fatorGeral.category
+        : "";
 
       Object.entries(respostasObj).forEach(([k, v]) => {
         records.push({
@@ -479,16 +358,9 @@ app.get("/api/export", async (req, res) => {
     });
 
     await csvWriter.writeRecords(records);
-
     res.download(filePath, "respostas_export.csv", (err) => {
-      if (err) {
-        console.error("Erro ao baixar CSV:", err);
-      }
-      try {
-        fs.unlinkSync(filePath);
-      } catch (e) {
-        // ignora
-      }
+      if (err) console.error("Erro ao baixar CSV:", err);
+      try { fs.unlinkSync(filePath); } catch (e) {}
     });
   } catch (err) {
     console.error("GET /api/export error:", err);
@@ -496,13 +368,9 @@ app.get("/api/export", async (req, res) => {
   }
 });
 
-/**
- * Health
- */
+/* Health */
 app.get("/api/ping", (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
-/**
- * Start server
- */
+/* Start */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Backend rodando em http://localhost:${PORT}`));
