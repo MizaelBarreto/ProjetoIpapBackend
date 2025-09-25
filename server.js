@@ -1,7 +1,7 @@
 // server.js
+import "dotenv/config"; // <- carrega variáveis imediatamente antes de qualquer uso
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { pool } from "./db.js";
 import { createObjectCsvWriter } from "csv-writer";
 import fs from "fs";
