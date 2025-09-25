@@ -8,40 +8,71 @@ if (!connectionString) {
   console.error("Missing DATABASE_URL / SUPABASE_DB_URL env var");
 }
 
-let host;
-try {
-  host = new URL(connectionString).hostname;
-  console.log("DB host (diagnostic):", host);
-} catch (err) {
-  console.error("Invalid DATABASE_URL format:", err.message);
-  host = null;
-}
+// exportamos uma variável que será inicializada async
+export let pool;
 
 (async () => {
+  let url;
+  try {
+    url = new URL(connectionString);
+  } catch (err) {
+    console.error("Invalid DATABASE_URL format:", err.message);
+  }
+
+  const host = url?.hostname;
+  if (host) console.log("DB host (diagnostic):", host);
+
+  // tenta resolver IPv4 primeiro, fallback para qualquer família
+  let resolvedAddress = null;
   if (host) {
     try {
-      const v4 = await dns.resolve4(host).catch((e) => { return { err: e }; });
-      const v6 = await dns.resolve6(host).catch((e) => { return { err: e }; });
-
-      if (v4 && !v4.err) console.log("DNS resolve4 ok:", v4);
-      else console.log("DNS resolve4 failed:", v4?.err?.code ?? v4?.err?.message);
-
-      if (v6 && !v6.err) console.log("DNS resolve6 ok:", v6);
-      else console.log("DNS resolve6 failed:", v6?.err?.code ?? v6?.err?.message);
+      const r = await dns.lookup(host, { family: 4 });
+      resolvedAddress = r.address;
+      console.log("DNS lookup (IPv4) ok:", resolvedAddress);
     } catch (err) {
-      console.error("DNS diagnostic error:", err?.code ?? err?.message ?? err);
+      console.warn("IPv4 lookup failed, trying default lookup:", err.message);
+      try {
+        const r2 = await dns.lookup(host);
+        resolvedAddress = r2.address;
+        console.log("DNS lookup (any) ok:", resolvedAddress);
+      } catch (err2) {
+        console.error("DNS lookup failed for", host, err2.message || err2.code);
+      }
     }
   }
-})();
- 
-export const pool = new Pool({
-  connectionString,
-  // Supabase exige TLS — em Node hosting como Vercel, aceite o certificado:
-  ssl: connectionString ? { rejectUnauthorized: false } : false,
-  // reduz tempo de timeout para detectar falhas rápido em logs
-  connectionTimeoutMillis: 5000,
-});
 
-pool.on("error", (err) => {
-  console.error("Unexpected PG error", err);
-});
+  try {
+    if (resolvedAddress && url) {
+      // monta config sem usar connectionString (usa IP resolvido)
+      const user = url.username || process.env.PGUSER;
+      const password = url.password || process.env.PGPASSWORD;
+      const port = Number(url.port || process.env.PGPORT || 5432);
+      const database = (url.pathname || "").replace(/^\//, "") || process.env.PGDATABASE;
+
+      pool = new Pool({
+        host: resolvedAddress,
+        port,
+        user,
+        password,
+        database,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 5000,
+      });
+      console.log("PG Pool created using resolved IP (WARNING: uses IP, SSL cert validation disabled).");
+    } else {
+      // fallback: usa connectionString diretamente
+      pool = new Pool({
+        connectionString,
+        ssl: connectionString ? { rejectUnauthorized: false } : false,
+        connectionTimeoutMillis: 5000,
+      });
+      console.log("PG Pool created using connectionString.");
+    }
+
+    pool.on("error", (err) => {
+      console.error("Unexpected PG error", err);
+    });
+  } catch (err) {
+    console.error("Error creating PG pool:", err);
+  }
+})();
