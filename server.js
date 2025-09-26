@@ -265,6 +265,13 @@ app.post("/api/sd4", async (req, res) => {
     const big5 = sumItems(respostas, BIG5_CODES);
     scores.big5_total = { raw: big5.sum, answeredItems: big5.count, possibleItems: BIG5_CODES.length };
 
+    // 🔹 Monta o texto único com os resultados
+    const summaryText = Object.entries(categories)
+      .map(([key, value]) => {
+        return `${key.charAt(0).toUpperCase() + key.slice(1)} (${value.category}): ${value.message}`;
+      })
+      .join(" ");
+
     // salvar via Supabase (service role key required)
     const payload = {
       nome,
@@ -272,21 +279,36 @@ app.post("/api/sd4", async (req, res) => {
       consent: Boolean(consent),
       respostas,
       scores,
-      categories
+      categories,
+      summaryText // 🔹 salva também no banco
     };
 
-    const { data: insertData, error: insertError, status } = await supabase.from("respostas").insert([payload]).select("id, created_at").single();
+    const { data: insertData, error: insertError, status } = await supabase
+      .from("respostas")
+      .insert([payload])
+      .select("id, created_at")
+      .single();
+
     if (insertError) {
       console.error("Supabase insert error:", insertError);
       return res.status(status || 500).json({ ok: false, message: "Erro ao salvar respostas" });
     }
 
-    return res.json({ ok: true, message: "Respostas recebidas e calculadas", id: insertData.id, created_at: insertData.created_at, scores, categories });
+    return res.json({
+      ok: true,
+      message: "Respostas recebidas e calculadas",
+      id: insertData.id,
+      created_at: insertData.created_at,
+      scores,
+      categories,
+      summaryText // 🔹 retorna também para o frontend
+    });
   } catch (err) {
     console.error("POST /api/sd4 error:", err);
     res.status(500).json({ ok: false, message: "Erro interno", error: err.message });
   }
 });
+
 
 /* GET /api/respostas */
 app.get("/api/respostas", async (req, res) => {
