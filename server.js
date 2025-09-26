@@ -280,7 +280,7 @@ app.post("/api/sd4", async (req, res) => {
       respostas,
       scores,
       categories,
-      summaryText // 🔹 salva também no banco
+     // summaryText // salva também no banco
     };
 
     const { data: insertData, error: insertError, status } = await supabase
