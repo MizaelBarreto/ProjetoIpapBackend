@@ -273,7 +273,7 @@ app.post("/api/sd4", async (req, res) => {
     // 🔹 Monta o texto corrido no novo formato
     const summaryText = [
       categories.maquiavelismo?.message || "",
-      "e",
+      
       categories.narcisismo?.message || "",
       "com",
       categories.psicopatia?.message || "",
