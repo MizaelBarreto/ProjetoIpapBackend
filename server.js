@@ -232,25 +232,29 @@ app.post("/api/sd4", async (req, res) => {
       categories[key] = interpretScore(key, sum);
     };
 
-    calcFactor("maquiavelismo", SD4_CODES.slice(0,7));
-    calcFactor("narcisismo", SD4_CODES.slice(7,14));
-    calcFactor("psicopatia", SD4_CODES.slice(14,21));
-    calcFactor("sadismo", SD4_CODES.slice(21,28));
+    // SD4
+    calcFactor("maquiavelismo", SD4_CODES.slice(0, 7));
+    calcFactor("narcisismo", SD4_CODES.slice(7, 14));
+    calcFactor("psicopatia", SD4_CODES.slice(14, 21));
+    calcFactor("sadismo", SD4_CODES.slice(21, 28));
 
+    // Fator geral
     const geralSum = sumItems(respostas, SD4_CODES);
     scores.fatorGeral = { raw: geralSum.sum, answeredItems: geralSum.count, possibleItems: SD4_CODES.length };
     categories.fatorGeral = interpretScore("fatorGeral", geralSum.sum);
 
-    const intrap = sumItems(respostas, FORCAS_CODES.slice(0,6));
+    // Forças
+    const intrap = sumItems(respostas, FORCAS_CODES.slice(0, 6));
     const inte = sumItems(respostas, FORCAS_CODES.slice(6));
     scores.forcas_intrapessoais = { raw: intrap.sum, answeredItems: intrap.count, possibleItems: 6 };
     scores.forcas_intelectuais_interp = { raw: inte.sum, answeredItems: inte.count, possibleItems: FORCAS_CODES.slice(6).length };
 
+    // Substâncias
     const substanciasScores = {};
     const substGroups = [
-      { key: "alcool", len: 6 },{ key: "tabaco", len: 6 },{ key: "maconha", len: 6 },
-      { key: "cocaina", len: 6 },{ key: "anfetaminas", len: 6 },{ key: "inalantes", len: 6 },
-      { key: "hipnoticos_sedativos", len: 6 },{ key: "alucinogenos", len: 6 },{ key: "opioides", len: 6 },
+      { key: "alcool", len: 6 }, { key: "tabaco", len: 6 }, { key: "maconha", len: 6 },
+      { key: "cocaina", len: 6 }, { key: "anfetaminas", len: 6 }, { key: "inalantes", len: 6 },
+      { key: "hipnoticos_sedativos", len: 6 }, { key: "alucinogenos", len: 6 }, { key: "opioides", len: 6 },
       { key: "uso_injetavel", len: 1 }
     ];
     let idx = 0;
@@ -262,17 +266,22 @@ app.post("/api/sd4", async (req, res) => {
     }
     scores.substancias = substanciasScores;
 
+    // Big 5
     const big5 = sumItems(respostas, BIG5_CODES);
     scores.big5_total = { raw: big5.sum, answeredItems: big5.count, possibleItems: BIG5_CODES.length };
 
-    // 🔹 Monta o texto único com os resultados
-    const summaryText = Object.entries(categories)
-      .map(([key, value]) => {
-        return `${key.charAt(0).toUpperCase() + key.slice(1)} (${value.category}): ${value.message}`;
-      })
-      .join(" ");
+    // 🔹 Monta o texto corrido no novo formato
+    const summaryText = [
+      categories.maquiavelismo?.message || "",
+      "e",
+      categories.narcisismo?.message || "",
+      "com",
+      categories.psicopatia?.message || "",
+      categories.sadismo?.message || "",
+      categories.fatorGeral?.message || ""
+    ].filter(Boolean).join(" ");
 
-    // salvar via Supabase (service role key required)
+    // salvar via Supabase
     const payload = {
       nome,
       email,
@@ -280,7 +289,7 @@ app.post("/api/sd4", async (req, res) => {
       respostas,
       scores,
       categories,
-     // summaryText // salva também no banco
+      summaryText // 🔹 agora também vai para o banco
     };
 
     const { data: insertData, error: insertError, status } = await supabase
@@ -301,7 +310,7 @@ app.post("/api/sd4", async (req, res) => {
       created_at: insertData.created_at,
       scores,
       categories,
-      summaryText // 🔹 retorna também para o frontend
+      summaryText // 🔹 retorna para o frontend
     });
   } catch (err) {
     console.error("POST /api/sd4 error:", err);
