@@ -1,10 +1,6 @@
 import { withCors } from './_cors.js';
 import { supabase } from '../db.js';
-import { createObjectCsvWriter } from 'csv-writer';
-import path from 'path';
-import fs from 'fs';
-
-const perguntasMap = {};
+import perguntasMap from '../perguntasMap.backend.js';
 
 async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).send('Method not allowed');
@@ -24,8 +20,6 @@ async function handler(req, res) {
     { id: 'resultado_num', title: 'Resultado_Num' },
     { id: 'resultado_cat', title: 'Resultado_Categoria' }
   ];
-  const filePath = path.join(process.cwd(), 'export.csv');
-  const csvWriter = createObjectCsvWriter({ path: filePath, header });
   const records = (rows || []).map((r) => {
     const respostasObj = r.respostas || {};
     const finalScore = (r.scores && r.scores.fatorGeral && typeof r.scores.fatorGeral.raw !== 'undefined')
@@ -38,9 +32,22 @@ async function handler(req, res) {
     Array.from(allKeys).forEach((k) => { const v = respostasObj[k]; rec[k] = (typeof v === 'object') ? JSON.stringify(v) : (v ?? ''); });
     return rec;
   });
-  await csvWriter.writeRecords(records);
-  res.download(filePath, 'respostas_export_wide.csv', (err) => { try { fs.unlinkSync(filePath); } catch {} });
+  // Monta CSV em memória
+  const esc = (s) => String(s ?? '').replace(/"/g, '""');
+  const headerRow = header.map(h => `"${esc(h.title)}"`).join(',');
+  const lines = [headerRow];
+  for (const r of records) {
+    const row = [
+      `"${esc(r.nome)}"`,`"${esc(r.email)}"`,`"${esc(r.created_at)}"`,
+      ...Array.from(allKeys).sort().map(k => `"${esc(r[k])}"`),
+      `"${esc(r.resultado_num)}"`,`"${esc(r.resultado_cat)}"`
+    ].join(',');
+    lines.push(row);
+  }
+  const csv = lines.join('\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="respostas_export_wide.csv"');
+  res.status(200).send(csv);
 }
 
 export default withCors(handler);
-
