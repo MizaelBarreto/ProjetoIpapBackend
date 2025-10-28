@@ -104,3 +104,26 @@ export const perguntasMap = {
 
 export default perguntasMap;
 
+// Completa rótulos para códigos da planilha (BY..CZ, DU..EK) a partir dos rótulos base (q1.., q7_..)
+(() => {
+  const SD4_CODES = [
+    "BY","BZ","CA","CB","CC","CD","CE",
+    "CF","CG","CH","CI","CJ","CK","CL",
+    "CM","CN","CO","CP","CQ","CR","CS",
+    "CT","CU","CV","CW","CX","CY","CZ"
+  ];
+  const FORCAS_CODES = [
+    "DU","DV","DW","EB","EC","EE",
+    "DS","DT","DX","DY","DZ","ED","EF","EG","EH","EI","EJ","EK"
+  ];
+
+  SD4_CODES.forEach((code, idx) => {
+    const qKey = `q${idx + 1}`;
+    if (!(code in perguntasMap) && perguntasMap[qKey]) perguntasMap[code] = perguntasMap[qKey];
+  });
+
+  FORCAS_CODES.forEach((code, idx) => {
+    const qKey = `q7_${idx + 1}`;
+    if (!(code in perguntasMap) && perguntasMap[qKey]) perguntasMap[code] = perguntasMap[qKey];
+  });
+})();
