@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "server.js", "use": "@vercel/node" }
+  ],
+  "functions": {
+    "server.js": {
+      "includeFiles": "node_modules/body-parser/**",
+      "runtime": "nodejs18.x"
+    }
+  }
+}
+
