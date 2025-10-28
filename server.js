@@ -7,7 +7,8 @@ import fs from "fs";
 import path from "path";
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true }));
+app.options('*', cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
 
 /* ------------------------------

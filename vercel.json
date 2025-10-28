@@ -5,7 +5,7 @@
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["node_modules/body-parser/**"],
+        "includeFiles": ["node_modules/**"],
         "runtime": "nodejs18.x"
       }
     }
