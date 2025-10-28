@@ -241,7 +241,7 @@ function mapFrontToPlanilha(respostasFront) {
   // Big5
   BIG5_CODES.forEach((code) => { if (respostasFront[code] !== undefined) respostas[code] = respostasFront[code]; });
   // Demográficas / adicionais
-  const possibleKeys = ["idade","genero","cor","escolaridade","area","estadoCivil","renda","diagnostico","diagnosticoDetalhe","crime","crimeDetalhe","substancias","outrasSubstanciasDetalhe"];
+  const possibleKeys = ["idade","genero","cor","escolaridade","area","estadoCivil","renda","diagnostico","diagnosticoDetalhe","crime","crimeDetalhe","substancias","substanciasSelecionadas","outrasSubstanciasDetalhe"];
   possibleKeys.forEach((k) => { if (respostasFront[k] !== undefined) respostas[k] = respostasFront[k]; });
   return respostas;
 }
