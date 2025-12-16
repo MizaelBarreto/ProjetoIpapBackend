@@ -51,29 +51,29 @@ const THRESHOLDS = {
 
 const MENSAGENS = {
   maquiavelismo: {
-    Baixo: "Você tende a ser direto e transparente; mantém relações estáveis.",
-    Médio: "Equilíbrio entre sinceridade e estratégia.",
-    Alto: "Tende a usar estratégias de influência; atenção em relações interpessoais."
+    Baixo: "Você tende a ser direto e transparente, valorizando a sinceridade nas relações. Isso fortalece vínculos de confiança, embora possa dificultar em ambientes muito competitivos.",
+    Médio: "Você demonstra equilíbrio entre sinceridade e estratégia, conseguindo negociar e se posicionar sem recorrer excessivamente à manipulação.",
+    Alto: "Você tende a usar estratégias de influência para atingir objetivos. Isso pode ser útil em negociações e liderança, mas é importante refletir sobre como esse estilo impacta a confiança e as relações interpessoais."
   },
   narcisismo: {
-    Baixo: "Você tende a ter postura modesta; boa cooperação.",
-    Médio: "Autoestima equilibrada; busca saudável por reconhecimento.",
-    Alto: "Alta autoconfiança; atenção ao equilíbrio com empatia."
+    Baixo: "Você tende a ter uma postura modesta, podendo até apresentar insegurança em alguns momentos. Esse estilo favorece a humildade, mas pode limitar a autovalorização.",
+    Médio: "Você apresenta uma autoestima equilibrada, com busca saudável por reconhecimento e confiança em suas capacidades.",
+    Alto: "Você demonstra alta autoconfiança e desejo de destaque. Isso pode impulsionar conquistas, mas também merece atenção para lidar com críticas e valorizar as necessidades dos outros."
   },
   psicopatia: {
-    Baixo: "Prioriza empatia e normas sociais.",
-    Médio: "Equilíbrio entre assertividade e sensibilidade.",
-    Alto: "Maior impulsividade; atenção ao controle emocional."
+    Baixo: "Você valoriza a empatia, evita riscos excessivos e tende a respeitar normas sociais, favorecendo relações mais seguras e confiáveis.",
+    Médio: "Você equilibra assertividade e sensibilidade, conseguindo lidar com situações difíceis sem perder totalmente a preocupação ética.",
+    Alto: "Você demonstra maior impulsividade e tolerância ao risco. Isso pode favorecer decisões rápidas e firmes, mas também exige atenção ao controle emocional e às consequências das ações."
   },
   sadismo: {
-    Baixo: "Respeito por vínculos; evita causar sofrimento.",
-    Médio: "Consegue competir sem prejudicar os outros.",
-    Alto: "Tendência a comportamentos que podem ferir — cautela."
+    Baixo: "Você evita causar sofrimento ou desconforto e valoriza interações respeitosas, priorizando vínculos colaborativos.",
+    Médio: "Você consegue lidar com situações competitivas sem buscar prazer em prejudicar outras pessoas, equilibrando firmeza e respeito.",
+    Alto: "Você tende a se sentir fortalecido em contextos de confronto ou dominação. Esse estilo pode apoiar liderança firme, mas exige cautela para não gerar agressividade ou prejuízos a outros."
   },
   fatorGeral: {
-    Baixo: "Estilo cooperativo e empático.",
-    Médio: "Traços estratégicos moderados.",
-    Alto: "Maior competitividade e pragmatismo."
+    Baixo: "Seu perfil indica estilo interpessoal cooperativo e empático, voltado para a colaboração e o respeito mútuo.",
+    Médio: "Você apresenta traços estratégicos dentro de níveis típicos. Esse equilíbrio pode ser funcional em diferentes contextos sociais e profissionais.",
+    Alto: "Seu perfil sugere maior competitividade e pragmatismo, o que pode fortalecer a liderança em alguns ambientes. Ao mesmo tempo, requer atenção para manter a autorregulação e preservar a confiança nas relações."
   }
 };
 
@@ -310,13 +310,11 @@ app.post("/api/sd4", async (req, res) => {
     // 🔹 Monta o texto corrido no novo formato
     const summaryText = [
       categories.maquiavelismo?.message || "",
-      
       categories.narcisismo?.message || "",
-      "com",
       categories.psicopatia?.message || "",
       categories.sadismo?.message || "",
       categories.fatorGeral?.message || ""
-    ].filter(Boolean).join(" ");
+    ].filter(Boolean).join("\n\n");
 
     // salvar via Supabase
     const payload = {
